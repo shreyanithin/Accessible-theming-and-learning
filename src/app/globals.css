@@ -1,8 +1,16 @@
 @import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary: #d32f2f;
+  --secondary: #43a047;
+  --text: #ffffff;
+}
+
+:root.accessible {
+  /* will be injected dynamically */
 }
 
 @theme inline {

@@ -1,103 +1,150 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect } from 'react';
+import ColorInput from '@/components/ColorInput';
+import PreviewCard from '@/components/PreviewCard';
+import {
+  contrast,
+  passesWCAG,
+  simulateBlindness,
+  suggestAccessible,
+} from '@/lib/colorUtils';
+
+type SimType = 'normal' | 'protanopia' | 'deuteranopia' | 'tritanopia';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  /* -------------- user‑selected colours -------------------- */
+  const [primary, setPrimary] = useState('#ff0000');
+  const [secondary, setSecondary] = useState('#00ff00');
+  const [text, setText] = useState('#ffffff');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  /* -------------- generated accessible alternatives -------- */
+  const [safe, setSafe] = useState({ p: '', s: '', t: '' });
+
+  /* -------------- theme mode ------------------------------- */
+  const [mode, setMode] = useState<'original' | 'accessible'>('original');
+
+  /* Generate safer colours whenever user edits */
+  useEffect(() => {
+    setSafe({
+      p: suggestAccessible(primary, '#fff'),
+      s: suggestAccessible(secondary, '#fff'),
+      t: suggestAccessible(text, primary),
+    });
+  }, [primary, secondary, text]);
+
+  /* Inject CSS vars into <html> each render */
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars =
+      mode === 'original'
+        ? { '--primary': primary, '--secondary': secondary, '--text': text }
+        : { '--primary': safe.p, '--secondary': safe.s, '--text': safe.t };
+
+    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    root.classList.toggle('accessible', mode === 'accessible');
+  }, [mode, primary, secondary, text, safe]);
+
+  /* Copy CSS snippet to clipboard */
+  const copyCSS = () => {
+    const css = `:root {\n  --primary:${safe.p};\n  --secondary:${safe.s};\n  --text:${safe.t};\n}`;
+    navigator.clipboard.writeText(css);
+    alert('CSS copied!');
+  };
+
+  /** Quick helper to render small simulation swatches */
+  const Sim = ({ type }: {  type: SimType }) => (
+    <div className="text-center">
+      <div
+        className="h-8 w-8 rounded mx-auto"
+        style={{
+          background:
+            type === 'normal' ? primary : simulateBlindness(primary, type),
+        }}
+      />
+      <span className="text-[10px]">{type}</span>
     </div>
+  );
+
+  return (
+    <main className="max-w-xl mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold text-center">
+         Accessible Theming Tool
+      </h1>
+
+      {/* *********  1. Brand colour inputs  ********* */}
+      <section className="space-y-3">
+        <ColorInput label="Primary" value={primary} onChange={setPrimary} />
+        <ColorInput label="Secondary" value={secondary} onChange={setSecondary} />
+        <ColorInput label="Text" value={text} onChange={setText} />
+      </section>
+
+      {/* *********  2. Contrast results  ********* */}
+      <section className="text-sm space-y-1">
+        <p>
+          Text ↔ Primary contrast:{' '}
+          <span
+            className={passesWCAG(text, primary) ? 'text-green-600' : 'text-red-600'}
+          >
+            {contrast(text, primary)}
+          </span>{' '}
+          {passesWCAG(text, primary) ? 'PASS' : 'FAIL'}
+        </p>
+        <p>
+          Text ↔ Secondary contrast:{' '}
+          <span
+            className={
+              passesWCAG(text, secondary) ? 'text-green-600' : 'text-red-600'
+            }
+          >
+            {contrast(text, secondary)}
+          </span>{' '}
+          {passesWCAG(text, secondary) ? 'PASS' : 'FAIL'}
+        </p>
+      </section>
+
+      {/* *********  3. Color‑blind simulation swatches  ********* */}
+      <section>
+        <h2 className="font-semibold text-sm mb-1">Colour‑blind simulation</h2>
+        <div className="flex gap-2">
+          {(['normal', 'protanopia', 'deuteranopia', 'tritanopia'] as const).map(
+            t => (
+              <Sim key={t} type={t} />
+            ),
+          )}
+        </div>
+      </section>
+
+      {/* *********  4. Accessible colour suggestions  ********* */}
+      <section className="text-sm space-y-1">
+        <h2 className="font-semibold">Suggested accessible colours</h2>
+        <p>Primary → {safe.p}</p>
+        <p>Secondary → {safe.s}</p>
+      </section>
+
+      {/* *********  5. Theme toggle  ********* */}
+      <button
+        onClick={() => setMode(m => (m === 'original' ? 'accessible' : 'original'))}
+        className="px-4 py-2 rounded font-semibold bg-black text-white"
+      >
+        {mode === 'original' ? 'Use Accessible Theme' : 'Use Original Theme'}
+      </button>
+
+      {/* *********  6. Preview area  ********* */}
+      <PreviewCard />
+
+      {/* *********  7. Action buttons  ********* */}
+      <div className="flex gap-4 mt-6">
+        <button
+          onClick={() => window.open('/preview', '_blank')}
+          className="px-3 py-2 rounded border"
+        >
+          View Live Preview
+        </button>
+
+        <button onClick={copyCSS} className="px-3 py-2 rounded border">
+          Copy CSS
+        </button>
+      </div>
+    </main>
   );
 }
