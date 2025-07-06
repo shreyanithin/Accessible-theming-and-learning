@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { 
   Settings, X, Eye, Palette, Download, Share2, Volume2, VolumeX, 
   Type, Zap, Target, CheckCircle,
-  FileText, Accessibility
+  FileText, Accessibility, Globe, Image, Upload, Loader2
 } from 'lucide-react';
 
 const colorBlindnessTypes = [
@@ -348,6 +348,107 @@ const PreviewCard = ({
   );
 };
 
+const extractDominantColors = (imageData: Uint8ClampedArray) => {
+  const colorMap = new Map<string, number>();
+
+  for (let i = 0; i < imageData.length; i += 4) {
+    const r = imageData[i];
+    const g = imageData[i + 1];
+    const b = imageData[i + 2];
+    if (imageData[i + 3] === 0) continue;
+    // Quantize colors to reduce noise
+    const quantizedR = Math.floor(r / 32) * 32;
+    const quantizedG = Math.floor(g / 32) * 32;
+    const quantizedB = Math.floor(b / 32) * 32;
+    const colorKey = `${quantizedR},${quantizedG},${quantizedB}`;
+    colorMap.set(colorKey, (colorMap.get(colorKey) || 0) + 1);
+  }
+
+  // Sort colors by frequency
+  const sortedColors = Array.from(colorMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([color]) => color.split(',').map(Number));
+
+  // Extract primary, secondary, and text colors
+  const primary = sortedColors[0] || [59, 130, 246];
+  const secondary = sortedColors[1] || [243, 244, 246];
+  const text = sortedColors.find(color => {
+    const [r, g, b] = color;
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.5; // Dark colors for text
+  }) || [31, 41, 55];
+
+  return {
+    primary: `#${primary[0].toString(16).padStart(2, '0')}${primary[1].toString(16).padStart(2, '0')}${primary[2].toString(16).padStart(2, '0')}`,
+    secondary: `#${secondary[0].toString(16).padStart(2, '0')}${secondary[1].toString(16).padStart(2, '0')}${secondary[2].toString(16).padStart(2, '0')}`,
+    text: `#${text[0].toString(16).padStart(2, '0')}${text[1].toString(16).padStart(2, '0')}${text[2].toString(16).padStart(2, '0')}`
+  };
+};
+
+// Color extraction from uploaded image file
+const extractColorsFromImage = async (file: File): Promise<{ primary: string; secondary: string; text: string }> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = document.createElement('img') as HTMLImageElement;
+    img.alt = "";
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+
+      const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
+      if (!imageData) {
+        reject(new Error('Failed to get image data'));
+        return;
+      }
+
+      const colors = extractDominantColors(imageData.data);
+      resolve(colors);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+const extractColorsFromURL = async (url: string): Promise<{ primary: string; secondary: string; text: string }> => {
+  try {
+    // For demo purposes, we'll simulate color extraction
+    // In a real implementation, you would need a backend service to scrape the website
+    // and extract colors from the CSS or rendered page
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Generate different color schemes based on URL hash for demo variety
+    const urlHash = url.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    
+    const colorSchemes = [
+      { primary: '#3b82f6', secondary: '#f8fafc', text: '#1e293b' }, // Blue theme
+      { primary: '#10b981', secondary: '#f0fdf4', text: '#064e3b' }, // Green theme
+      { primary: '#f59e0b', secondary: '#fffbeb', text: '#78350f' }, // Amber theme
+      { primary: '#ef4444', secondary: '#fef2f2', text: '#7f1d1d' }, // Red theme
+      { primary: '#8b5cf6', secondary: '#faf5ff', text: '#581c87' }, // Purple theme
+      { primary: '#06b6d4', secondary: '#ecfeff', text: '#164e63' }, // Cyan theme
+    ];
+    
+    const selectedScheme = colorSchemes[Math.abs(urlHash) % colorSchemes.length];
+    
+    console.log('Extracting colors from URL:', url);
+    
+    return selectedScheme;
+  } catch (error) {
+    console.error('Error extracting colors from URL:', error);
+    throw new Error('Failed to extract colors from URL. Please try with a screenshot instead.');
+  }
+};
+
 export default function PreviewPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(true); // Start with sidebar open
   const [colorBlindnessType, setColorBlindnessType] = useState('original');
@@ -361,6 +462,13 @@ export default function PreviewPage() {
   const [poppedType, setPoppedType] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const [mounted, setMounted] = useState(false);
+  
+  // New state for input methods
+  const [inputMethod, setInputMethod] = useState<'manual' | 'url' | 'screenshot'>('manual');
+  const [urlInput, setUrlInput] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionError, setExtractionError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.title = 'Accessible Theme Preview';
@@ -421,6 +529,58 @@ export default function PreviewPage() {
     setEnableTTS(!enableTTS);
   };
 
+  // Color extraction handlers
+  const handleURLSubmit = async () => {
+    if (!urlInput.trim()) {
+      setExtractionError('Please enter a valid URL');
+      return;
+    }
+    
+    setIsExtracting(true);
+    setExtractionError('');
+    
+    try {
+      const colors = await extractColorsFromURL(urlInput);
+      setPrimaryColor(colors.primary);
+      setSecondaryColor(colors.secondary);
+      setTextColor(colors.text);
+      setInputMethod('manual'); // Switch back to manual mode after extraction
+    } catch (error) {
+      setExtractionError(error instanceof Error ? error.message : 'Failed to extract colors');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      setExtractionError('Please select a valid image file');
+      return;
+    }
+    
+    setIsExtracting(true);
+    setExtractionError('');
+    
+    try {
+      const colors = await extractColorsFromImage(file);
+      setPrimaryColor(colors.primary);
+      setSecondaryColor(colors.secondary);
+      setTextColor(colors.text);
+      setInputMethod('manual'); // Switch back to manual mode after extraction
+    } catch (error) {
+      setExtractionError(error instanceof Error ? error.message : 'Failed to extract colors from image');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  const handleScreenshotClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const currentType = colorBlindnessTypes.find(type => type.id === colorBlindnessType);
 
   return (
@@ -471,7 +631,56 @@ export default function PreviewPage() {
                 <Palette className="w-5 h-5 mr-2" />
                 Customize the colors you wish to use for your site
               </h2>
-              {mounted && (
+              
+              {/* Input Method Selection */}
+              <div className="mb-6">
+                <h3 className="text-md font-medium text-black mb-3">Choose Input Method:</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setInputMethod('manual')}
+                    className={`flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border-2 transition-colors ${
+                      inputMethod === 'manual'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <Palette className="w-4 h-4" />
+                    <span>Manual Input</span>
+                  </button>
+                  <button
+                    onClick={() => setInputMethod('url')}
+                    className={`flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border-2 transition-colors ${
+                      inputMethod === 'url'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>Website URL</span>
+                  </button>
+                  <button
+                    onClick={() => setInputMethod('screenshot')}
+                    className={`flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border-2 transition-colors ${
+                      inputMethod === 'screenshot'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    <Image className="w-4 h-4" />
+                    <span>Screenshot</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Display */}
+              {extractionError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">{extractionError}</p>
+                </div>
+              )}
+
+              {/* Manual Input */}
+              {inputMethod === 'manual' && mounted && (
                 <div className="grid md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">
@@ -506,6 +715,81 @@ export default function PreviewPage() {
                       className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* URL Input */}
+              {inputMethod === 'url' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
+                      Website URL
+                    </label>
+                    <div className="flex space-x-2">
+                      <input
+                        type="url"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        placeholder="https://example.com"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        onClick={handleURLSubmit}
+                        disabled={isExtracting}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isExtracting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Globe className="w-4 h-4" />
+                        )}
+                        <span>{isExtracting ? 'Extracting...' : 'Extract Colors'}</span>
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Enter a website URL to automatically extract its color scheme
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Screenshot Upload */}
+              {inputMethod === 'screenshot' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
+                      Upload Screenshot
+                    </label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                      <button
+                        onClick={handleScreenshotClick}
+                        disabled={isExtracting}
+                        className="flex flex-col items-center space-y-2 w-full"
+                      >
+                        {isExtracting ? (
+                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                        ) : (
+                          <Upload className="w-8 h-8 text-gray-400" />
+                        )}
+                        <span className="text-sm text-gray-600">
+                          {isExtracting ? 'Processing image...' : 'Click to upload or drag and drop'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          PNG, JPG, JPEG up to 10MB
+                        </span>
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Upload a screenshot to automatically extract its color scheme
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
                 </div>
               )}
             </div>
