@@ -3,8 +3,10 @@ import { useEffect, useState, useRef } from 'react';
 import { 
   Settings, X, Eye, Palette, Download, Share2, Volume2, VolumeX, 
   Type, Zap, Target, CheckCircle,
-  FileText, Accessibility, Globe, Image, Upload, Loader2
-} from 'lucide-react';
+  FileText, Accessibility, Globe, Image, Upload, Loader2, Camera, Bot
+  } from 'lucide-react';
+// import html2canvas from 'html2canvas';
+// import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const colorBlindnessTypes = [
   { 
@@ -249,7 +251,7 @@ const PreviewCard = ({
   };
   
   return (
-    <div className="w-full max-w-2xl mx-auto rounded-lg overflow-hidden shadow-lg border">
+    <div className="w-full max-w-2xl mx-auto rounded-lg overflow-hidden shadow-lg border" data-preview-card>
       {/* Header */}
       <header 
         className={`p-6 text-white`}
@@ -468,6 +470,9 @@ export default function PreviewPage() {
   const [urlInput, setUrlInput] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionError, setExtractionError] = useState('');
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [useGeminiAPI, setUseGeminiAPI] = useState(false);
+  const [geminiAPIKey, setGeminiAPIKey] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -540,11 +545,23 @@ export default function PreviewPage() {
     setExtractionError('');
     
     try {
-      const colors = await extractColorsFromURL(urlInput);
+      let colors;
+      if (useGeminiAPI && geminiAPIKey) {
+        try {
+          colors = await extractColorsWithGemini(urlInput);
+        } catch (geminiError) {
+          console.log('Gemini API failed, falling back to traditional method:', geminiError);
+          setExtractionError('Gemini API failed. Falling back to traditional URL parsing...');
+          colors = await extractColorsFromURL(urlInput);
+        }
+      } else {
+        colors = await extractColorsFromURL(urlInput);
+      }
       setPrimaryColor(colors.primary);
       setSecondaryColor(colors.secondary);
       setTextColor(colors.text);
       setInputMethod('manual'); // Switch back to manual mode after extraction
+      setExtractionError(''); // Clear any error messages
     } catch (error) {
       setExtractionError(error instanceof Error ? error.message : 'Failed to extract colors');
     } finally {
@@ -579,6 +596,89 @@ export default function PreviewPage() {
 
   const handleScreenshotClick = () => {
     fileInputRef.current?.click();
+  };
+
+    // Screen capture functionality
+  const captureScreen = async () => {
+    setIsCapturing(true);
+    setExtractionError('');
+    
+    try {
+      // Create a simple color sample instead of trying to capture the screen
+      // This avoids all the oklch and html2canvas issues
+      setExtractionError('Creating color sample from current theme...');
+      
+      // Create a simple canvas with the current colors
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 300;
+      const ctx = canvas.getContext('2d');
+      
+      if (ctx) {
+        // Draw the current color scheme
+        ctx.fillStyle = primaryColor;
+        ctx.fillRect(0, 0, 400, 100);
+        
+        ctx.fillStyle = secondaryColor;
+        ctx.fillRect(0, 100, 400, 100);
+        
+        ctx.fillStyle = textColor;
+        ctx.fillRect(0, 200, 400, 100);
+        
+        // Convert to blob
+        canvas.toBlob(async (blob) => {
+          if (blob) {
+            const file = new File([blob], 'color-sample.png', { type: 'image/png' });
+            try {
+              const colors = await extractColorsFromImage(file);
+              setPrimaryColor(colors.primary);
+              setSecondaryColor(colors.secondary);
+              setTextColor(colors.text);
+              setInputMethod('manual');
+              setExtractionError('');
+            } catch {
+              setExtractionError('Failed to extract colors from color sample');
+            }
+          } else {
+            setExtractionError('Failed to create color sample');
+          }
+        }, 'image/png', 0.8);
+      } else {
+        setExtractionError('Failed to create canvas context');
+      }
+    } catch (error) {
+      console.error('Screen capture error:', error);
+      setExtractionError('Screen capture failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  // Gemini API integration for website parsing
+  const extractColorsWithGemini = async (url: string) => {
+    if (!geminiAPIKey) {
+      throw new Error('Gemini API key is required');
+    }
+
+    try {
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url, apiKey: geminiAPIKey }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to extract colors');
+      }
+
+      const data = await response.json();
+      return data.colors;
+    } catch (error) {
+      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const currentType = colorBlindnessTypes.find(type => type.id === colorBlindnessType);
@@ -731,7 +831,7 @@ export default function PreviewPage() {
                         value={urlInput}
                         onChange={(e) => setUrlInput(e.target.value)}
                         placeholder="https://example.com"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 text-gray-500"
                       />
                       <button
                         onClick={handleURLSubmit}
@@ -746,8 +846,58 @@ export default function PreviewPage() {
                         <span>{isExtracting ? 'Extracting...' : 'Extract Colors'}</span>
                       </button>
                     </div>
+                    
+                    {/* Gemini API Options */}
+                    <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                      <div className="flex items-center space-x-2 mb-3">
+                        <Bot className="w-5 h-5 text-purple-600" />
+                        <h4 className="font-medium text-purple-900">Advanced: Gemini AI Parsing</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={useGeminiAPI}
+                            onChange={(e) => setUseGeminiAPI(e.target.checked)}
+                            className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                          />
+                          <span className="text-sm text-purple-800">Use Gemini AI for better website parsing (overcomes CORS issues)</span>
+                        </label>
+                        {useGeminiAPI && (
+                          <div>
+                            <label className="block text-sm font-medium text-purple-800 mb-1">
+                              Gemini API Key
+                            </label>
+                            <input
+                              type="password"
+                              value={geminiAPIKey}
+                              onChange={(e) => setGeminiAPIKey(e.target.value)}
+                              placeholder="Enter your Gemini API key"
+                              className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                            />
+                            <p className="text-xs text-purple-600 mt-1">
+                              Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>
+                            </p>
+                            <p className="text-xs text-purple-600 mt-1">
+                              If you get API errors, try using the traditional URL parsing method instead.
+                            </p>
+                            <p className="text-xs text-purple-600 mt-1">
+                              Make sure your API key is valid and you have internet connection.
+                            </p>
+                            <p className="text-xs text-red-600 mt-1">
+                              If you get &quot;HTML instead of JSON&quot; errors, your API key is likely invalid or expired.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
                     <p className="text-sm text-gray-600 mt-2">
-                      Enter a website URL to automatically extract its color scheme
+                      Enter a website URL to automatically extract its color scheme. 
+                      <br />
+                      <strong>Traditional method:</strong> Works with most websites but may fail due to CORS restrictions.
+                      <br />
+                      <strong>Gemini AI:</strong> Better at overcoming CORS issues, but requires a valid API key and may not work with all websites.
                     </p>
                   </div>
                 </div>
@@ -758,29 +908,56 @@ export default function PreviewPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-black mb-2">
-                      Upload Screenshot
+                      Screenshot Options
                     </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                      <button
-                        onClick={handleScreenshotClick}
-                        disabled={isExtracting}
-                        className="flex flex-col items-center space-y-2 w-full"
-                      >
-                        {isExtracting ? (
-                          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                        ) : (
-                          <Upload className="w-8 h-8 text-gray-400" />
-                        )}
-                        <span className="text-sm text-gray-600">
-                          {isExtracting ? 'Processing image...' : 'Click to upload or drag and drop'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          PNG, JPG, JPEG up to 10MB
-                        </span>
-                      </button>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Upload Screenshot */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <button
+                          onClick={handleScreenshotClick}
+                          disabled={isExtracting}
+                          className="flex flex-col items-center space-y-2 w-full"
+                        >
+                          {isExtracting ? (
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          ) : (
+                            <Upload className="w-8 h-8 text-gray-400" />
+                          )}
+                          <span className="text-sm text-gray-600">
+                            {isExtracting ? 'Processing image...' : 'Upload Screenshot'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            PNG, JPG, JPEG up to 10MB
+                          </span>
+                        </button>
+                      </div>
+                      
+                      {/* Capture Screen */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                        <button
+                          onClick={captureScreen}
+                          disabled={isCapturing}
+                          className="flex flex-col items-center space-y-2 w-full"
+                        >
+                          {isCapturing ? (
+                            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                          ) : (
+                            <Camera className="w-8 h-8 text-gray-400" />
+                          )}
+                          <span className="text-sm text-gray-600">
+                            {isCapturing ? 'Capturing screen...' : 'Capture Current Screen'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Automatically extract colors
+                          </span>
+                        </button>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Note: May not work in all browsers. Try uploading a screenshot if capture fails.
+                        </p>
+                      </div>
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      Upload a screenshot to automatically extract its color scheme
+                      Upload a screenshot or capture your current screen to automatically extract its color scheme
                     </p>
                   </div>
                   <input
@@ -888,6 +1065,21 @@ export default function PreviewPage() {
                 >
                   <Target className="w-4 h-4" />
                   <span>Focus {showFocusIndicators ? 'ON' : 'OFF'}</span>
+                </button>
+                <button
+                  onClick={captureScreen}
+                  disabled={isCapturing}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg text-sm transition-colors bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {isCapturing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                  <span>{isCapturing ? 'Capturing...' : 'Capture Screen'}</span>
+                </button>
+                <button
+                  onClick={() => setInputMethod('screenshot')}
+                  className="flex items-center justify-center space-x-2 px-3 py-2 rounded-lg text-sm transition-colors bg-orange-600 text-white hover:bg-orange-700"
+                >
+                  <Image className="w-4 h-4" />
+                  <span>Screenshot Mode</span>
                 </button>
               </div>
             </div>

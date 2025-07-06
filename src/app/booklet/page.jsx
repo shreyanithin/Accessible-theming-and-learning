@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Eye, Heart, Lightbulb, Palette, TestTube, Users, ArrowRight, Check, X, AlertCircle, Info, BookOpen, Zap, Target, Globe } from 'lucide-react';
+import Link from 'next/link';
 
 const ColorBlindnessGuide = () => {
   const [testStep, setTestStep] = useState(0);
@@ -90,6 +91,16 @@ const ColorBlindnessGuide = () => {
         </div>
       </header>
 
+      {/* Back Button */}
+      <div className="max-w-7xl mx-auto px-4 mt-8 flex">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 text-white text-lg rounded-lg shadow font-semibold hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-pink-200"
+        >
+          <span className="text-2xl">&#8592;</span> Back 
+        </Link>
+      </div>
+
       {/* Enhanced Hero Section */}
       <section className="py-20 px-4 relative">
         <div className="max-w-6xl mx-auto">
@@ -124,87 +135,7 @@ const ColorBlindnessGuide = () => {
         </div>
       </section>
 
-      {/* Scientific Foundation Section */}
-      <section className="py-16 px-4" data-section="science">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-12">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full">
-                <Lightbulb className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-4xl font-bold text-gray-800">Scientific Foundation</h2>
-            </div>
-            <div className="hidden md:block">
-              <Globe className="w-12 h-12 text-purple-400 animate-spin" style={{ animationDuration: '8s' }} />
-            </div>
-          </div>
-          
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Left side - Detailed Science */}
-            <div className={`transform transition-all duration-1000 ${visibleSections.science ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'}`}>
-              <div className="bg-gradient-to-br from-white to-purple-50 rounded-2xl p-8 shadow-xl border border-purple-200">
-                <h3 className="text-2xl font-bold text-gray-800 mb-6">Retinal Cone Cell Biology</h3>
-                <div className="space-y-4 mb-6">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-red-500 rounded-full flex-shrink-0 mt-1"></div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">L-Cones (Long wavelength)</h4>
-                      <p className="text-gray-600 text-sm">Peak sensitivity: 564-580nm (Red light)</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-green-500 rounded-full flex-shrink-0 mt-1"></div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">M-Cones (Medium wavelength)</h4>
-                      <p className="text-gray-600 text-sm">Peak sensitivity: 534-545nm (Green light)</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-500 rounded-full flex-shrink-0 mt-1"></div>
-                    <div>
-                      <h4 className="font-semibold text-gray-800">S-Cones (Short wavelength)</h4>
-                      <p className="text-gray-600 text-sm">Peak sensitivity: 420-440nm (Blue light)</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-purple-100 p-4 rounded-lg">
-                  <p className="text-sm text-purple-800">
-                    <strong>Key Fact:</strong> Normal color vision requires all three cone types to function properly. 
-                    CVD occurs when one or more cone types are absent or have altered spectral sensitivity.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right side - Genetic Information */}
-            <div className={`transform transition-all duration-1000 ${visibleSections.science ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`} style={{ transitionDelay: '0.3s' }}>
-              <div className="bg-gradient-to-br from-white to-pink-50 rounded-2xl p-8 shadow-xl border border-pink-200">
-                <h3 className="text-2xl font-bold text-gray-800 mb-6">Genetic Inheritance</h3>
-                <div className="space-y-4 mb-6">
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-semibold text-gray-800 mb-2">X-Linked Recessive</h4>
-                    <p className="text-gray-600 text-sm">Red-green CVD is carried on the X chromosome. Males have only one X chromosome, making them more susceptible.</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-semibold text-gray-800 mb-2">Gene Mutations</h4>
-                    <p className="text-gray-600 text-sm">OPN1LW (L-cone opsin) and OPN1MW (M-cone opsin) gene variants cause most red-green CVD cases.</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-semibold text-gray-800 mb-2">Blue CVD (Tritanopia)</h4>
-                    <p className="text-gray-600 text-sm">Caused by mutations in OPN1SW gene. Autosomal dominant inheritance, affects both sexes equally.</p>
-                  </div>
-                </div>
-                <div className="bg-pink-100 p-4 rounded-lg">
-                  <p className="text-sm text-pink-800">
-                    <strong>Inheritance Pattern:</strong> If a mother is a carrier, each son has a 50% chance of being color blind, 
-                    and each daughter has a 50% chance of being a carrier.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      
 
       {/* Enhanced Types Section with Horizontal Layout */}
       <section className="py-16 px-4 bg-gradient-to-r from-purple-50 to-pink-50" data-section="types">
@@ -767,116 +698,15 @@ const ColorBlindnessGuide = () => {
         </div>
       </section>
 
-      {/* Enhanced Color Vision Test Section */}
-      <section className="py-16 px-4 bg-gradient-to-r from-purple-50 to-pink-50" data-section="test">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <TestTube className="w-12 h-12 text-purple-600 animate-pulse" />
-              <h2 className="text-4xl font-bold text-gray-800">Interactive Color Vision Test</h2>
-            </div>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              This simplified Ishihara-inspired test is for educational purposes only. 
-              Professional diagnosis requires comprehensive testing by an eye care specialist.
-            </p>
-          </div>
-          
-          <div className="bg-white rounded-2xl p-8 shadow-xl border border-purple-200">
-            {!showResults ? (
-              <div className="text-center">
-                <div className="mb-8">
-                  <div className="flex items-center justify-center gap-4 mb-4">
-                    <div className="text-2xl font-bold text-purple-600">
-                      Test {testStep + 1} of {ishiharaTests.length}
-                    </div>
-                    <div className="flex gap-2">
-                      {Array.from({ length: ishiharaTests.length }, (_, i) => (
-                        <div
-                          key={i}
-                          className={`w-3 h-3 rounded-full ${
-                            i < testStep ? 'bg-green-500' : 
-                            i === testStep ? 'bg-purple-500' : 'bg-gray-300'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bg-gradient-to-r from-purple-100 to-pink-100 p-12 rounded-2xl mb-6 shadow-inner">
-                    <div className="text-8xl mb-4 animate-pulse">{ishiharaTests[testStep].image}</div>
-                    <p className="text-gray-700 text-lg">What number do you see in the pattern above?</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {ishiharaTests[testStep].options.map((option, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleTestAnswer(option)}
-                      className="p-6 bg-gradient-to-r from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 rounded-xl transition-all duration-300 text-gray-800 font-medium text-lg shadow-md hover:shadow-lg transform hover:scale-105"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div className="mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Check className="w-10 h-10 text-white" />
-                  </div>
-                  <h3 className="text-3xl font-bold text-gray-800 mb-6">Test Complete</h3>
-                </div>
-                
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-8 rounded-2xl mb-8">
-                  <p className="text-xl text-gray-700 mb-4">{getTestResult()}</p>
-                  <div className="text-sm text-gray-600">
-                    <strong>Disclaimer:</strong> This is a simplified screening test. Professional evaluation 
-                    includes comprehensive testing with standardized Ishihara plates, anomaloscope testing, 
-                    and other specialized equipment.
-                  </div>
-                </div>
-                
-                <div className="mb-8">
-                  <p className="text-gray-600 mb-4 font-medium">Your Test Results:</p>
-                  <div className="grid grid-cols-4 gap-4">
-                    {testAnswers.map((answer, index) => (
-                      <div key={index} className="bg-white p-4 rounded-lg shadow-md border">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          {answer === ishiharaTests[index].correctAnswer ? (
-                            <Check className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <X className="w-5 h-5 text-red-600" />
-                          )}
-                          <span className="font-medium">Test {index + 1}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          Your answer: <span className="font-medium">{answer}</span>
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Correct: {ishiharaTests[index].correctAnswer}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={resetTest}
-                    className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
-                  >
-                    Take Test Again
-                  </button>
-                  <button
-                    className="px-8 py-3 bg-white border-2 border-purple-600 text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg"
-                  >
-                    Find Eye Care Professional
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Interactive Colour Vision Test Button at the end */}
+      <section className="py-16 px-4">
+        <div className="max-w-4xl mx-auto flex justify-center items-center">
+          <Link
+            href="/test"
+            className="px-8 py-5 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 text-white text-2xl rounded-xl shadow-lg font-bold hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-pink-200"
+          >
+            Take the Interactive Colour Vision Test
+          </Link>
         </div>
       </section>
 
