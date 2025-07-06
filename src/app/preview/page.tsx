@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { 
   Settings, X, Eye, Palette, Download, Share2, Volume2, VolumeX, 
   Type, Zap, Target, CheckCircle,
-  Globe, Camera, FileText, Accessibility
+  FileText, Accessibility
 } from 'lucide-react';
 
 const colorBlindnessTypes = [
@@ -234,9 +234,6 @@ const PreviewCard = ({
   const transformedSecondary = transformColor(secondaryColor, colorBlindnessType);
   const transformedText = transformColor(textColor, colorBlindnessType);
   
-  const contrastRatio = calculateContrastRatio(transformedPrimary, transformedText);
-  const wcagLevel = getWCAGLevel(contrastRatio);
-  
   const fontSizeClasses = {
     small: 'text-sm',
     base: 'text-base',
@@ -347,19 +344,6 @@ const PreviewCard = ({
       >
         <p className={fontSizeClasses[fontSize]}>&copy; 2025 Your Brand. Accessible by design.</p>
       </footer>
-      
-      {/* Contrast Ratio Indicator */}
-      <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-2 text-xs">
-        <div className="flex items-center space-x-2">
-          <Target className="w-3 h-3" />
-          <span>Contrast: {contrastRatio.toFixed(2)}:1</span>
-          <span className={`px-1 rounded ${
-            wcagLevel.status === 'pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
-            {wcagLevel.level}
-          </span>
-        </div>
-      </div>
     </div>
   );
 };
@@ -374,13 +358,33 @@ export default function PreviewPage() {
   const [fontSize, setFontSize] = useState<'small' | 'base' | 'large' | 'xl' | '2xl'>('base');
   const [showFocusIndicators, setShowFocusIndicators] = useState(false);
   const [enableTTS, setEnableTTS] = useState(false);
-  const [websiteURL, setWebsiteURL] = useState('');
-  const [isScraping, setIsScraping] = useState(false);
-  const [scrapedColors, setScrapedColors] = useState<string[]>([]);
+  const [poppedType, setPoppedType] = useState<string | null>(null);
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     document.title = 'Accessible Theme Preview';
   }, []);
+
+  useEffect(() => {
+    if (!poppedType) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPoppedType(null);
+    }
+    function handleClick(e: MouseEvent) {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        setPoppedType(null);
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClick);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [poppedType]);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const exportPalette = () => {
     const palette = {
@@ -410,22 +414,6 @@ export default function PreviewPage() {
     linkElement.click();
   };
 
-  const simulateWebScraping = async () => {
-    setIsScraping(true);
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock scraped colors from a website
-    const mockColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
-    setScrapedColors(mockColors);
-    setIsScraping(false);
-    
-    // Auto-apply first color as primary
-    if (mockColors.length > 0) {
-      setPrimaryColor(mockColors[0]);
-    }
-  };
-
   const toggleTTS = () => {
     if (enableTTS) {
       speechSynthesis.cancel();
@@ -442,12 +430,12 @@ export default function PreviewPage() {
         <main className="h-full overflow-y-auto p-4">
           {/* Header */}
           <div className="max-w-6xl mx-auto mb-8">
-            <div className="flex items-center justify-between bg-white rounded-lg p-6 shadow-sm">
+            <div className="flex items-center justify-between bg-white rounded-lg p-8 shadow-md border-b-4 border-blue-600">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Live Theme Preview</h1>
-                <p className="text-gray-600 mt-1">
-                  Currently viewing: <span className="font-semibold">{currentType?.name}</span>
-                  {currentType?.description && ` - ${currentType.description}`}
+                <h1 className="text-4xl font-extrabold text-blue-900 drop-shadow-sm">Live Theme Preview</h1>
+                <p className="text-lg font-bold text-black mt-2 bg-yellow-100 px-3 py-1 rounded inline-block shadow-sm">
+                  Currently viewing: <span className="font-extrabold text-blue-800">{currentType?.name}</span>
+                  {currentType?.description && <span className="font-normal text-gray-700"> - {currentType.description}</span>}
                 </p>
               </div>
               <div className="flex items-center space-x-3">
@@ -478,87 +466,48 @@ export default function PreviewPage() {
 
           {/* Color Input Panel */}
           <div className="max-w-6xl mx-auto mb-8">
-            <div className="bg-white rounded-lg p-6 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 flex items-center">
+            <div className="bg-almond-50 rounded-lg p-6 shadow-sm">
+              <h2 className="text-lg font-semibold mb-4 flex items-center text-black">
                 <Palette className="w-5 h-5 mr-2" />
-                Customize Your Colors
+                Customize the colors you wish to use for your site
               </h2>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Primary Color
-                  </label>
-                  <input
-                    type="color"
-                    value={primaryColor}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Secondary Color
-                  </label>
-                  <input
-                    type="color"
-                    value={secondaryColor}
-                    onChange={(e) => setSecondaryColor(e.target.value)}
-                    className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Text Color
-                  </label>
-                  <input
-                    type="color"
-                    value={textColor}
-                    onChange={(e) => setTextColor(e.target.value)}
-                    className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
-                  />
-                </div>
-              </div>
-              
-              {/* Web Scraping Section */}
-              <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
-                  <Globe className="w-4 h-4 mr-2" />
-                  Extract Colors from Website
-                </h3>
-                <div className="flex space-x-3">
-                  <input
-                    type="url"
-                    placeholder="Enter website URL (e.g., https://example.com)"
-                    value={websiteURL}
-                    onChange={(e) => setWebsiteURL(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={simulateWebScraping}
-                    disabled={isScraping}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>{isScraping ? 'Scraping...' : 'Extract Colors'}</span>
-                  </button>
-                </div>
-                {scrapedColors.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm text-blue-700 mb-2">Found colors:</p>
-                    <div className="flex space-x-2">
-                      {scrapedColors.map((color, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setPrimaryColor(color)}
-                          className="w-8 h-8 rounded border-2 border-white shadow-md hover:scale-110 transition-transform"
-                          style={{ backgroundColor: color }}
-                          title={`Use ${color} as primary color`}
-                        />
-                      ))}
-                    </div>
+              {mounted && (
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
+                      Primary Color
+                    </label>
+                    <input
+                      type="color"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
+                    />
                   </div>
-                )}
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
+                      Secondary Color
+                    </label>
+                    <input
+                      type="color"
+                      value={secondaryColor}
+                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-black mb-2">
+                      Text Color
+                    </label>
+                    <input
+                      type="color"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="w-full h-12 rounded-lg border border-gray-300 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -567,7 +516,7 @@ export default function PreviewPage() {
             {showComparison ? (
               <div className="grid lg:grid-cols-2 gap-8">
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 text-center">Original</h3>
+                  <h3 className="text-lg font-semibold mb-4 text-center text-black">Original</h3>
                   <PreviewCard 
                     primaryColor={primaryColor}
                     secondaryColor={secondaryColor}
@@ -579,7 +528,7 @@ export default function PreviewPage() {
                   />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold mb-4 text-center">
+                  <h3 className="text-lg font-semibold mb-4 text-center text-black">
                     {currentType?.name} View
                   </h3>
                   <PreviewCard 
@@ -610,8 +559,8 @@ export default function PreviewPage() {
         </main>
       </div>
 
-      {/* Settings Sidebar */}
-      {isSettingsOpen && (
+      {/* Only render sidebar and modal after mount to avoid hydration mismatch */}
+      {mounted && isSettingsOpen && (
         <div className="w-96 bg-white shadow-xl overflow-y-auto border-l">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -708,18 +657,15 @@ export default function PreviewPage() {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mb-2">{type.description}</p>
-                        
                         <div className="space-y-2 text-xs">
                           <div className="bg-red-50 p-2 rounded border-l-2 border-red-200">
                             <p className="font-medium text-red-800">How they see:</p>
                             <p className="text-red-700">{type.perception}</p>
                           </div>
-                          
                           <div className="bg-orange-50 p-2 rounded border-l-2 border-orange-200">
                             <p className="font-medium text-orange-800">Impact on websites:</p>
                             <p className="text-orange-700">{type.impact}</p>
                           </div>
-                          
                           <div className="bg-green-50 p-2 rounded border-l-2 border-green-200">
                             <p className="font-medium text-green-800">Our solution:</p>
                             <p className="text-green-700">{type.suggestion}</p>

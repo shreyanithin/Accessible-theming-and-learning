@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Eye, Copy, Palette, Check, X, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { findAccessibleColor, simulateColorBlindness, getContrastRatio } from 'access-utils';
+
 
 const ColorInput = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => (
   <div className="space-y-2">
@@ -17,129 +19,13 @@ const ColorInput = ({ label, value, onChange }: { label: string; value: string; 
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm text-gray-400"
         placeholder="#000000"
       />
     </div>
   </div>
 );
 
-const isValidHex = (color: string) => /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(color);
-
-const hexToRgb = (hex: string) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
-};
-
-const rgbToHex = (r: number, g: number, b: number) => 
-  "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-
-const getLuminance = (r: number, g: number, b: number) => {
-  const [rs, gs, bs] = [r, g, b].map(c => {
-    c = c / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
-};
-
-const getContrastRatio = (color1: string, color2: string) => {
-  if (!isValidHex(color1) || !isValidHex(color2)) return 0;
-  
-  const rgb1 = hexToRgb(color1);
-  const rgb2 = hexToRgb(color2);
-  if (!rgb1 || !rgb2) return 0;
-  
-  const lum1 = getLuminance(rgb1.r, rgb1.g, rgb1.b);
-  const lum2 = getLuminance(rgb2.r, rgb2.g, rgb2.b);
-  
-  const brightest = Math.max(lum1, lum2);
-  const darkest = Math.min(lum1, lum2);
-  
-  return (brightest + 0.05) / (darkest + 0.05);
-};
-
-const rgbToHsl = (r: number, g: number, b: number) => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  const diff = max - min;
-  const add = max + min;
-  const l = add * 0.5;
-  
-  let s = 0, h = 0;
-  if (diff !== 0) {
-    s = l < 0.5 ? diff / add : diff / (2 - add);
-    switch (max) {
-      case r: h = ((g - b) / diff) + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / diff + 2; break;
-      case b: h = (r - g) / diff + 4; break;
-    }
-    h /= 6;
-  }
-  return [h * 360, s * 100, l * 100];
-};
-
-const hslToRgb = (h: number, s: number, l: number) => {
-  h /= 360; s /= 100; l /= 100;
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h * 6) % 2 - 1));
-  const m = l - c / 2;
-  let r = 0, g = 0, b = 0;
-  
-  if (h < 1/6) [r, g, b] = [c, x, 0];
-  else if (h < 2/6) [r, g, b] = [x, c, 0];
-  else if (h < 3/6) [r, g, b] = [0, c, x];
-  else if (h < 4/6) [r, g, b] = [0, x, c];
-  else if (h < 5/6) [r, g, b] = [x, 0, c];
-  else [r, g, b] = [c, 0, x];
-  
-  return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255)
-  };
-};
-
-const findAccessibleColor = (color: string, background: string) => {
-  if (!isValidHex(color) || !isValidHex(background)) return color;
-  
-  const rgb = hexToRgb(color);
-  const bgRgb = hexToRgb(background);
-  if (!rgb || !bgRgb) return color;
-  
-  const [h, s, l] = rgbToHsl(rgb.r, rgb.g, rgb.b);
-  const bgLum = getLuminance(bgRgb.r, bgRgb.g, bgRgb.b);
-  
-  // Determine if we need to go darker or lighter
-  const shouldGoDarker = bgLum > 0.5;
-  
-  // Start with current lightness and adjust incrementally
-  let bestColor = color;
-  let bestRatio = getContrastRatio(color, background);
-  
-  // Try adjusting lightness in steps
-  for (let i = 1; i <= 50; i++) {
-    const step = i * 2;
-    const newL = shouldGoDarker ? Math.max(5, l - step) : Math.min(95, l + step);
-    
-    const newRgb = hslToRgb(h, s, newL);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    const ratio = getContrastRatio(newHex, background);
-    
-    if (ratio > bestRatio) {
-      bestColor = newHex;
-      bestRatio = ratio;
-    }
-    
-    // If we found a good ratio, stop here to stay close to original
-    if (ratio >= 4.5) break;
-  }
-  
-  return bestColor;
-};
 
 const ContrastBadge = ({ ratio, passes }: { ratio: number; passes: boolean }) => (
   <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -186,21 +72,28 @@ export default function AccessibleColorTool() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4">
-            <Palette className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Accessible Color Tool</h1>
-          <p className="text-gray-600">Create WCAG-compliant color schemes</p>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-emerald-100 to-white p-6" suppressHydrationWarning>
+      {/* Reference Book Button */}
+      <div className="text-center mb-8">
+        <div className="flex justify-between items-center mb-4 ">
+          <div></div> {/* Spacer */}
+          <button className="px-6 py-5 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors shadow-md text-xl">
+            Reference Book
+          </button>
         </div>
-
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500 rounded-full mb-4 ">
+          <Palette className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-6xl font-bold text-gray-900 mb-2">Accessible Colour Tool</h1>
+        <p className="text-2xl text-gray-600 pt-9 mb-20">Create WCAG-compliant colour schemes</p>
+      </div>
+      
+      <div className="max-w-4xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Palette className="w-5 h-5 mr-2" /> Colors
+              <h2 className="text-xl font-semibold mb-4 flex items-center text-black">
+                <Palette className="w-5 h-5 mr-2 " /> Colours
               </h2>
               <div className="space-y-4">
                 <ColorInput label="Primary" value={primary} onChange={setPrimary} />
@@ -210,7 +103,7 @@ export default function AccessibleColorTool() {
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <h2 className="text-xl font-semibold mb-4 flex items-center text-black">
                 <Eye className="w-5 h-5 mr-2" /> Contrast Analysis
               </h2>
               <div className="space-y-3">
@@ -227,15 +120,45 @@ export default function AccessibleColorTool() {
                   <ContrastBadge ratio={textContrast} passes={textContrast >= 4.5} />
                 </div>
               </div>
+              {/* Color Blindness Simulation Boxes */}
+              <div className="mt-6">
+                <h3 className="text-md font-semibold mb-2 text-gray-800">Color Blindness Simulation (Primary Color)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Normal */}
+                  <div className="flex flex-col items-center p-3 bg-gray-50 rounded">
+                    <div className="w-8 h-8 rounded border mb-2" style={{ backgroundColor: primary }} />
+                    <span className="text-xs font-medium text-gray-700">Normal</span>
+                    <span className="text-[10px] text-gray-500 font-mono">{primary}</span>
+                  </div>
+                  {/* Protanopia */}
+                  <div className="flex flex-col items-center p-3 bg-gray-50 rounded">
+                    <div className="w-8 h-8 rounded border mb-2" style={{ backgroundColor: simulateColorBlindness(primary).protanopia }} />
+                    <span className="text-xs font-medium text-gray-700">Protanopia</span>
+                    <span className="text-[10px] text-gray-500 font-mono">{simulateColorBlindness(primary).protanopia}</span>
+                  </div>
+                  {/* Deuteranopia */}
+                  <div className="flex flex-col items-center p-3 bg-gray-50 rounded">
+                    <div className="w-8 h-8 rounded border mb-2" style={{ backgroundColor: simulateColorBlindness(primary).deuteranopia }} />
+                    <span className="text-xs font-medium text-gray-700">Deuteranopia</span>
+                    <span className="text-[10px] text-gray-500 font-mono">{simulateColorBlindness(primary).deuteranopia}</span>
+                  </div>
+                  {/* Tritanopia */}
+                  <div className="flex flex-col items-center p-3 bg-gray-50 rounded">
+                    <div className="w-8 h-8 rounded border mb-2" style={{ backgroundColor: simulateColorBlindness(primary).tritanopia }} />
+                    <span className="text-xs font-medium text-gray-700">Tritanopia</span>
+                    <span className="text-[10px] text-gray-500 font-mono">{simulateColorBlindness(primary).tritanopia}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 text-black">
               <h2 className="text-xl font-semibold mb-4">Accessible Alternatives</h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <div className="flex items-center space-x-3">
-                    <div className="w-6 h-6 rounded border" style={{ backgroundColor: accessiblePrimary }} />
-                    <span className="text-sm font-mono">{accessiblePrimary}</span>
+                    <div className="w-6 h-6 rounded border " style={{ backgroundColor: accessiblePrimary }} />
+                    <span className="text-sm font-mono ">{accessiblePrimary}</span>
                   </div>
                   <span className="text-xs text-gray-500">Primary ({getContrastRatio(accessiblePrimary, background).toFixed(1)}:1)</span>
                 </div>
@@ -259,7 +182,7 @@ export default function AccessibleColorTool() {
 
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 text-black">
                 <h2 className="text-xl font-semibold">Preview Mode</h2>
                 <button
                   onClick={() => setMode(m => m === 'original' ? 'accessible' : 'original')}
@@ -319,10 +242,8 @@ export default function AccessibleColorTool() {
                 </button>
               </div>
               <div className="mt-4 flex justify-center">
-                <Link href="/preview" legacyBehavior>
-                  <a className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold shadow hover:bg-purple-700 transition-colors text-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2">
-                    Try it yourself
-                  </a>
+                <Link href="/preview" className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold shadow hover:bg-purple-700 transition-colors text-lg focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2">
+                  Try it yourself
                 </Link>
               </div>
             </div>

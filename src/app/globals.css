@@ -6,7 +6,7 @@
 :root {
   --primary: #d32f2f;
   --secondary: #43a047;
-  --text: #ffffff;
+  --text: #e3b5b5;
 }
 
 :root.accessible {
