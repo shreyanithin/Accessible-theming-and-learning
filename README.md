@@ -17,9 +17,9 @@ Inclusify is a modern web application that helps designers and developers build 
   Built with Next.js, Tailwind CSS, and Framer Motion for a beautiful, modern experience.
 
 - 🎯 **ColorBlindness Test**
-Detect and visualize color vision deficiency using Ishihara plates for accurate results.
+   Detect and visualize color vision deficiency using Ishihara plates for accurate Deuteranopia and Protanopia.
 
-- ♿ **Accessibility First**  
+- ♿ **Accessibility First** 
   Designed to promote accessible, inclusive design practices.
 
 - 📦 **Custom Accessibility Package**  
