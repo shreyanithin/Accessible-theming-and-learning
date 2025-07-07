@@ -16,7 +16,7 @@ Inclusify is a modern web application that helps designers and developers build 
 - ⚡ **Animated, Responsive UI**  
   Built with Next.js, Tailwind CSS, and Framer Motion for a beautiful, modern experience.
 
-  🎯 **ColorBlindness Test**
+- 🎯 **ColorBlindness Test**
 Detect and visualize color vision deficiency using Ishihara plates for accurate results.
 
 - ♿ **Accessibility First**  
